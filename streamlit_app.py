@@ -160,16 +160,19 @@ def save_config():
         json.dump(data, f, indent=2)
 
 # Fetch stock price from NSE
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=60)  # Cache for 1 minute
 def get_stock_price(symbol):
     """Get current stock price from Yahoo Finance"""
     try:
+        # Make sure symbol is uppercase and add .NS for NSE
+        symbol = symbol.upper()
         ticker = yf.Ticker(f"{symbol}.NS")
         data = ticker.history(period="1d")
         if not data.empty:
             return data['Close'].iloc[-1]
         return None
-    except:
+    except Exception as e:
+        print(f"Error fetching {symbol}: {e}")
         return None
 
 # Calculate total P/L
@@ -380,7 +383,7 @@ Features:
             account_name = st.text_input("Account Name (e.g., Zerodha, HDFC, Groww)")
             symbol = st.text_input("Stock Symbol (e.g., RELIANCE, TCS, INFY)")
             quantity = st.number_input("Quantity", min_value=0.01, step=0.01, format="%.2f")
-            avg_price = st.number_input("Average Price Bought At (₹) - even if 15 years ago", min_value=0.01, step=0.01, format="%.2f")
+            avg_price = st.number_input("Average Price Bought At (₹)", min_value=0.01, step=0.01, format="%.2f")
             
             submitted = st.form_submit_button("✅ Buy Stock")
             
@@ -399,21 +402,7 @@ Features:
                     buy_stock(symbol, quantity, avg_price, portfolio_name, account_name)
                     st.success(f"✅ Bought {quantity} shares of {symbol.upper()} at ₹{avg_price} in {portfolio_name}'s {account_name}")
                     st.balloons()
-        
-        st.markdown("---")
-        st.markdown("**Popular NSE Stocks:**")
-        st.markdown("""
-        - RELIANCE (Reliance Industries)
-        - TCS (Tata Consultancy Services)
-        - INFY (Infosys)
-        - HDFCBANK (HDFC Bank)
-        - ICICIBANK (ICICI Bank)
-        - ITC (ITC Limited)
-        - SBIN (State Bank of India)
-        - BHARTIARTL (Bharti Airtel)
-        - WIPRO (Wipro)
-        - LT (Larsen & Toubro)
-        """)
+
     
     # SELL STOCK
     elif st.session_state.selected_service == "sell":
