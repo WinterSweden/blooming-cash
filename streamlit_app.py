@@ -6,7 +6,7 @@ Track stocks across multiple accounts - FREE!
 import streamlit as st
 import json
 import os
-import yfinance as yf
+import requests
 import pandas as pd
 from datetime import datetime
 
@@ -25,8 +25,8 @@ st.markdown("""
     header[data-testid="stHeader"] { background: #0a0e1a !important; }
     #MainMenu, footer, .stDeployButton {visibility: hidden;}
     .welcome-text { font-size: 36px; font-weight: 600; color: #ffffff; text-align: center; margin-bottom: 10px; }
-    .balance-bar { background: rgba(255, 255, 255, 0.08); border-radius: 10px; padding: 15px; text-align: center; margin: 20px auto; max-width: 900px; color: white; font-size: 18px; border: 1px solid rgba(255, 255, 255, 0.1);}
-    .stButton>button { width: 100%; background: rgba(255, 255, 255, 0.08); color: white; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 10px; padding: 15px; font-size: 16px; transition: all 0.3s; margin: 5px 0;}
+    .balance-bar { background: rgba(255, 255, 255, 0.08); border-radius: 10px; padding: 15px; text-align: center; margin: 20px auto; max-width: 900px; color: white; font-size: 18px; border: 1px solid rgba(255, 255, 255, 0.1); }
+    .stButton>button { width: 100%; background: rgba(255, 255, 255, 0.08); color: white; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 10px; padding: 15px; font-size: 16px; transition: all 0.3s; margin: 5px 0; }
     .stButton>button:hover { background: rgba(255, 255, 255, 0.15); border-color: rgba(255, 255, 255, 0.3); transform: translateX(5px); }
     .stTextInput>div>div>input, .stNumberInput>div>div>input, .stSelectbox>div>div>div { background: rgba(255, 255, 255, 0.08); color: white; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; }
     .result-box { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 20px; color: white; margin-top: 20px; min-height: 400px; font-family: 'Courier New', monospace; white-space: pre-wrap; font-size: 14px; line-height: 1.6; }
@@ -48,9 +48,6 @@ def load_config():
             with open(CONFIG_FILE, 'r') as f:
                 data = json.load(f)
                 st.session_state.portfolio = data.get('portfolio', [])
-                # Round quantities to nearest int
-                for s in st.session_state.portfolio:
-                    s['quantity'] = int(round(s['quantity']))
         except:
             pass
 
@@ -63,26 +60,26 @@ def save_config():
     with open(CONFIG_FILE, 'w') as f:
         json.dump(data, f, indent=2)
 
-# Fetch stock price from NSE (yfinance fallback)
+# Get NSE stock price via scraping
 @st.cache_data(ttl=60)
 def get_stock_price(symbol):
-    """Get current or last close stock price from Yahoo Finance (NSE/BSE)."""
+    """Fetch last available NSE closing price."""
     try:
         symbol = symbol.upper()
-        ticker = yf.Ticker(f"{symbol}.NS")
-        data = ticker.history(period="1mo")
-        if not data.empty:
-            return float(data['Close'].iloc[-1])
-        # Try BSE
-        ticker = yf.Ticker(f"{symbol}.BO")
-        data = ticker.history(period="1mo")
-        if not data.empty:
-            return float(data['Close'].iloc[-1])
+        url = f"https://www.nseindia.com/api/quote-equity?symbol={symbol}"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        session = requests.Session()
+        session.get("https://www.nseindia.com", headers=headers)
+        response = session.get(url, headers=headers)
+        data = response.json()
+        price = data.get("priceInfo", {}).get("lastPrice", None)
+        if price is not None:
+            return float(price)
         return None
-    except Exception as e:
-        st.warning(f"⚠️ Could not fetch {symbol}: {e}")
+    except:
         return None
 
+# Calculate total P/L
 def calculate_total_pl():
     total = 0
     for stock in st.session_state.portfolio:
@@ -91,9 +88,10 @@ def calculate_total_pl():
             total += (current_price - stock['avg_price']) * stock['quantity']
     return total
 
+# Buy stock
 def buy_stock(symbol, quantity, avg_price, portfolio_name, account_name):
-    quantity = int(round(quantity))
     symbol = symbol.upper()
+    quantity = int(quantity)
     existing_idx = None
     for i, stock in enumerate(st.session_state.portfolio):
         if stock['symbol'] == symbol and stock['portfolio'] == portfolio_name and stock['account'] == account_name:
@@ -120,9 +118,10 @@ def buy_stock(symbol, quantity, avg_price, portfolio_name, account_name):
         })
     save_config()
 
+# Sell stock
 def sell_stock(symbol, quantity, portfolio_name, account_name):
-    quantity = int(round(quantity))
     symbol = symbol.upper()
+    quantity = int(quantity)
     stock_idx = None
     for i, stock in enumerate(st.session_state.portfolio):
         if stock['symbol'] == symbol and stock['portfolio'] == portfolio_name and stock['account'] == account_name:
@@ -140,10 +139,10 @@ def sell_stock(symbol, quantity, portfolio_name, account_name):
     save_config()
     return True, f"Sold {quantity} shares of {symbol}"
 
-# Load data
+# Load portfolio
 load_config()
 
-# UI header
+# UI Header
 st.markdown('<h1 class="welcome-text">blooming cash 🌸</h1>', unsafe_allow_html=True)
 
 # Summary bar
@@ -151,8 +150,8 @@ total_pl = calculate_total_pl()
 pl_color = "#10b981" if total_pl >= 0 else "#ef4444"
 pl_sign = "+" if total_pl >= 0 else ""
 last_updated = datetime.now().strftime("%d %b %Y, %I:%M %p")
-accounts = list(set([stock['account'] for stock in st.session_state.portfolio]))
-portfolios = list(set([stock['portfolio'] for stock in st.session_state.portfolio]))
+accounts = list(set([s['account'] for s in st.session_state.portfolio]))
+portfolios = list(set([s['portfolio'] for s in st.session_state.portfolio]))
 
 st.markdown(f'''
 <div class="balance-bar">
@@ -214,20 +213,16 @@ with col_right:
             portfolio_name = st.text_input("Portfolio (e.g., Dad, Mom, Self)")
             account_name = st.text_input("Account (e.g., Zerodha, Groww)")
             symbol = st.text_input("Stock Symbol (e.g., RELIANCE, TCS, INFY)")
-            quantity = st.number_input("Quantity", min_value=1, step=1, format="%d")
-            avg_price = st.number_input("Average Price (₹)", min_value=1, step=1, format="%d")
+            quantity = st.number_input("Quantity", min_value=1, step=1)
+            avg_price = st.number_input("Average Price (₹)", min_value=1, step=1)
             submitted = st.form_submit_button("✅ Buy Stock")
             if submitted:
                 if not all([portfolio_name, account_name, symbol]):
                     st.error("Please fill all fields.")
                 else:
-                    price = get_stock_price(symbol)
-                    if price is None:
-                        st.error("❌ Invalid stock symbol or no price data available.")
-                    else:
-                        buy_stock(symbol, quantity, avg_price, portfolio_name, account_name)
-                        st.success(f"✅ Bought {quantity} shares of {symbol.upper()} at ₹{avg_price}")
-                        st.balloons()
+                    buy_stock(symbol, quantity, avg_price, portfolio_name, account_name)
+                    st.success(f"✅ Bought {quantity} shares of {symbol.upper()} at ₹{avg_price}")
+                    st.balloons()
 
     elif st.session_state.selected_service == "sell":
         st.markdown("### 📉 Sell Stock")
@@ -243,7 +238,7 @@ with col_right:
                 symbol = st.selectbox("Stock Symbol", stocks_in_selection)
                 current_qty = next((s['quantity'] for s in st.session_state.portfolio if s['symbol'] == symbol and s['portfolio'] == portfolio_name and s['account'] == account_name), 0)
                 st.info(f"You own {current_qty} shares of {symbol}")
-                quantity = st.number_input("Quantity to Sell", min_value=1, max_value=current_qty, step=1, format="%d")
+                quantity = st.number_input("Quantity to Sell", min_value=1, max_value=current_qty, step=1)
                 submitted = st.form_submit_button("✅ Sell Stock")
                 if submitted:
                     success, message = sell_stock(symbol, quantity, portfolio_name, account_name)
