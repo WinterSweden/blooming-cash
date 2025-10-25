@@ -9,8 +9,9 @@ import os
 import yfinance as yf
 import pandas as pd
 from datetime import datetime
+import numpy as np
 
-# Page config
+# --- PAGE CONFIG ---
 st.set_page_config(
     page_title="blooming cash 🌸",
     page_icon="🌸",
@@ -18,12 +19,13 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Custom CSS (mirroring Literary Voice)
+# --- CUSTOM CSS ---
 st.markdown("""
 <style>
     .stApp { background: #0a0e1a; }
     header[data-testid="stHeader"] { background: #0a0e1a !important; }
     #MainMenu, footer, .stDeployButton {visibility: hidden;}
+    
     .welcome-text {
         font-size: 36px;
         font-weight: 600;
@@ -31,6 +33,7 @@ st.markdown("""
         text-align: center;
         margin-bottom: 10px;
     }
+    
     .balance-bar {
         background: rgba(255, 255, 255, 0.08);
         border-radius: 10px;
@@ -42,6 +45,7 @@ st.markdown("""
         font-size: 18px;
         border: 1px solid rgba(255, 255, 255, 0.1);
     }
+    
     .stButton>button {
         width: 100%;
         background: rgba(255, 255, 255, 0.08);
@@ -53,17 +57,20 @@ st.markdown("""
         transition: all 0.3s;
         margin: 5px 0;
     }
+    
     .stButton>button:hover {
         background: rgba(255, 255, 255, 0.15);
         border-color: rgba(255, 255, 255, 0.3);
         transform: translateX(5px);
     }
+    
     .stTextInput>div>div>input, .stNumberInput>div>div>input, .stSelectbox>div>div>div {
         background: rgba(255, 255, 255, 0.08);
         color: white;
         border: 1px solid rgba(255, 255, 255, 0.15);
         border-radius: 8px;
     }
+    
     .result-box {
         background: rgba(255, 255, 255, 0.05);
         border: 1px solid rgba(255, 255, 255, 0.1);
@@ -77,18 +84,35 @@ st.markdown("""
         font-size: 14px;
         line-height: 1.6;
     }
+    
+    .stDataFrame {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 10px;
+        padding: 10px;
+    }
+    .stDataFrame thead tr th {
+        background: rgba(255, 255, 255, 0.1) !important;
+        color: white !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    }
+    .stDataFrame tbody tr td {
+        background: rgba(255, 255, 255, 0.03) !important;
+        color: white !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
+# --- CONFIG FILE ---
 CONFIG_FILE = "config.json"
 
-# Initialize session state
+# --- SESSION STATE ---
 if 'portfolio' not in st.session_state:
     st.session_state.portfolio = []
 if 'selected_service' not in st.session_state:
     st.session_state.selected_service = "dashboard"
 
-# Load config
+# --- LOAD CONFIG ---
 def load_config():
     if os.path.exists(CONFIG_FILE):
         try:
@@ -98,7 +122,7 @@ def load_config():
         except:
             pass
 
-# Save config
+# --- SAVE CONFIG ---
 def save_config():
     data = {
         'portfolio': st.session_state.portfolio,
@@ -107,36 +131,33 @@ def save_config():
     with open(CONFIG_FILE, 'w') as f:
         json.dump(data, f, indent=2)
 
-# --- FIXED FUNCTION (with 5-day fallback and BSE check) ---
-@st.cache_data(ttl=60)
+# --- GET STOCK PRICE ---
+@st.cache_data(ttl=300)
 def get_stock_price(symbol):
-    """Get current or last close stock price from Yahoo Finance (NSE/BSE)."""
+    """Fetch most recent available stock price from Yahoo Finance (NSE/BSE)."""
     try:
         symbol = symbol.upper()
 
-        # Try NSE 1-day data first
+        # NSE first
         ticker = yf.Ticker(f"{symbol}.NS")
-        data = ticker.history(period="1d")
-
+        data = ticker.history(period="1mo")
         if not data.empty:
-            return float(data['Close'].iloc[-1])
+            last_close = data["Close"].dropna().iloc[-1]
+            return float(last_close)
 
-        # Fallback: try NSE 5-day data if market closed
-        data = ticker.history(period="5d")
-        if not data.empty:
-            return float(data['Close'].iloc[-1])
-
-        # Fallback: try BSE 5-day data
+        # BSE fallback
         ticker = yf.Ticker(f"{symbol}.BO")
-        data = ticker.history(period="5d")
+        data = ticker.history(period="1mo")
         if not data.empty:
-            return float(data['Close'].iloc[-1])
+            last_close = data["Close"].dropna().iloc[-1]
+            return float(last_close)
 
         return None
     except Exception as e:
         st.warning(f"⚠️ Could not fetch {symbol}: {e}")
         return None
 
+# --- CALCULATE TOTAL P/L ---
 def calculate_total_pl():
     total = 0.0
     for stock in st.session_state.portfolio:
@@ -145,6 +166,7 @@ def calculate_total_pl():
             total += (current_price - stock['avg_price']) * stock['quantity']
     return total
 
+# --- BUY STOCK ---
 def buy_stock(symbol, quantity, avg_price, portfolio_name, account_name):
     symbol = symbol.upper()
     existing_idx = None
@@ -173,6 +195,7 @@ def buy_stock(symbol, quantity, avg_price, portfolio_name, account_name):
         })
     save_config()
 
+# --- SELL STOCK ---
 def sell_stock(symbol, quantity, portfolio_name, account_name):
     symbol = symbol.upper()
     stock_idx = None
@@ -192,20 +215,20 @@ def sell_stock(symbol, quantity, portfolio_name, account_name):
     save_config()
     return True, f"Sold {quantity} shares of {symbol}"
 
-# Load data
+# --- LOAD DATA ---
 load_config()
 
-# UI header
+# --- HEADER ---
 st.markdown('<h1 class="welcome-text">blooming cash 🌸</h1>', unsafe_allow_html=True)
 
-# Summary bar
+# --- SUMMARY BAR ---
 total_pl = calculate_total_pl()
 pl_color = "#10b981" if total_pl >= 0 else "#ef4444"
 pl_sign = "+" if total_pl >= 0 else ""
 last_updated = datetime.now().strftime("%d %b %Y, %I:%M %p")
 
-accounts = list(set([stock['account'] for stock in st.session_state.portfolio]))
-portfolios = list(set([stock['portfolio'] for stock in st.session_state.portfolio]))
+accounts = list(set([s['account'] for s in st.session_state.portfolio]))
+portfolios = list(set([s['portfolio'] for s in st.session_state.portfolio]))
 
 st.markdown(f'''
 <div class="balance-bar">
@@ -216,9 +239,10 @@ st.markdown(f'''
 </div>
 ''', unsafe_allow_html=True)
 
-# Layout
+# --- LAYOUT ---
 col_left, col_right = st.columns([1, 3])
 
+# --- LEFT MENU ---
 with col_left:
     st.markdown("### Services")
     if st.button("📊 Dashboard"): st.session_state.selected_service = "dashboard"; st.rerun()
@@ -228,7 +252,9 @@ with col_left:
         st.cache_data.clear()
         st.rerun()
 
+# --- RIGHT CONTENT ---
 with col_right:
+    # DASHBOARD
     if st.session_state.selected_service == "dashboard":
         st.markdown("### 📊 Family Portfolio Dashboard")
 
@@ -244,7 +270,7 @@ Use "📈 Buy Stock" to add holdings.
             for stock in st.session_state.portfolio:
                 current_price = get_stock_price(stock['symbol'])
                 if current_price:
-                    total_pl = (current_price - stock['avg_price']) * stock['quantity']
+                    total_pl_stock = (current_price - stock['avg_price']) * stock['quantity']
                     pl_pct = ((current_price - stock['avg_price']) / stock['avg_price']) * 100
                     portfolio_data.append({
                         'Portfolio': stock['portfolio'],
@@ -253,7 +279,7 @@ Use "📈 Buy Stock" to add holdings.
                         'Quantity': stock['quantity'],
                         'Avg Price': f"₹{stock['avg_price']:.2f}",
                         'Current Price': f"₹{current_price:.2f}",
-                        'Total P/L': f"₹{total_pl:.2f}",
+                        'Total P/L': f"₹{total_pl_stock:.2f}",
                         'P/L %': f"{pl_pct:+.2f}%"
                     })
                 else:
@@ -271,6 +297,7 @@ Use "📈 Buy Stock" to add holdings.
             df = pd.DataFrame(portfolio_data)
             st.dataframe(df, use_container_width=True, hide_index=True)
 
+    # BUY STOCK
     elif st.session_state.selected_service == "buy":
         st.markdown("### 📈 Buy Stock")
         with st.form("buy_form"):
@@ -292,6 +319,7 @@ Use "📈 Buy Stock" to add holdings.
                         st.success(f"✅ Bought {quantity} shares of {symbol.upper()} at ₹{avg_price}")
                         st.balloons()
 
+    # SELL STOCK
     elif st.session_state.selected_service == "sell":
         st.markdown("### 📉 Sell Stock")
         if not st.session_state.portfolio:
@@ -314,4 +342,4 @@ Use "📈 Buy Stock" to add holdings.
                         st.success(f"✅ {message}")
                         st.balloons()
                     else:
-                        st.error(f"❌ {message}")
+                        st
