@@ -159,10 +159,10 @@ st.markdown(f'''
 col_left, col_right = st.columns([1, 3])
 with col_left:
     st.markdown("### Services")
-    if st.button("📊 Dashboard"): st.session_state.selected_service="dashboard"; st.rerun()
-    if st.button("📈 Buy Stock"): st.session_state.selected_service="buy"; st.rerun()
-    if st.button("📉 Sell Stock"): st.session_state.selected_service="sell"; st.rerun()
-    if st.button("🔄 Refresh Prices"): st.cache_data.clear(); st.rerun()
+    if st.button("📊 Dashboard"): st.session_state.selected_service="dashboard"; st.experimental_rerun()
+    if st.button("📈 Buy Stock"): st.session_state.selected_service="buy"; st.experimental_rerun()
+    if st.button("📉 Sell Stock"): st.session_state.selected_service="sell"; st.experimental_rerun()
+    if st.button("🔄 Refresh Prices"): st.cache_data.clear(); st.experimental_rerun()
 
 with col_right:
     if st.session_state.selected_service=="dashboard":
