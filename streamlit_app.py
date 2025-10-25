@@ -107,23 +107,26 @@ def save_config():
     with open(CONFIG_FILE, 'w') as f:
         json.dump(data, f, indent=2)
 
-# --- FIXED FUNCTION ---
+# --- FIXED FUNCTION (with 5-day fallback and BSE check) ---
 @st.cache_data(ttl=60)
 def get_stock_price(symbol):
     """Get current or last close stock price from Yahoo Finance (NSE/BSE)."""
     try:
         symbol = symbol.upper()
-        ticker = yf.Ticker(f"{symbol}.NS")
 
+        # Try NSE 1-day data first
+        ticker = yf.Ticker(f"{symbol}.NS")
         data = ticker.history(period="1d")
+
         if not data.empty:
             return float(data['Close'].iloc[-1])
 
+        # Fallback: try NSE 5-day data if market closed
         data = ticker.history(period="5d")
         if not data.empty:
             return float(data['Close'].iloc[-1])
 
-        # Try BSE fallback
+        # Fallback: try BSE 5-day data
         ticker = yf.Ticker(f"{symbol}.BO")
         data = ticker.history(period="5d")
         if not data.empty:
