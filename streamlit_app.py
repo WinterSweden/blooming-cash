@@ -71,7 +71,6 @@ def get_stock_price(symbol):
         session = requests.Session()
         session.get("https://www.nseindia.com", headers=headers)
 
-        # Quote API
         url = f"https://www.nseindia.com/api/quote-equity?symbol={symbol}"
         resp = session.get(url, headers=headers)
         data = resp.json()
@@ -80,7 +79,7 @@ def get_stock_price(symbol):
         if last_price:
             return float(last_price.replace(",", ""))
 
-        # Fallback to historical data (most recent close)
+        # Fallback to historical
         hist_url = f"https://www.nseindia.com/api/historical/cm/equity?symbol={symbol}&series=[\"EQ\"]&from=01-01-2020&to={datetime.today().strftime('%d-%m-%Y')}"
         hist_resp = session.get(hist_url, headers=headers)
         hist_data = hist_resp.json()
@@ -195,13 +194,9 @@ with col_right:
                 if not all([portfolio_name, account_name, symbol]):
                     st.error("Please fill all fields.")
                 else:
-                    price = get_stock_price(symbol)
-                    if price is None:
-                        st.error("❌ Invalid stock symbol or no price data available.")
-                    else:
-                        buy_stock(symbol, quantity, avg_price, portfolio_name, account_name)
-                        st.success(f"✅ Bought {quantity} shares of {symbol.upper()} at ₹{avg_price}")
-                        st.balloons()
+                    buy_stock(symbol, quantity, avg_price, portfolio_name, account_name)
+                    st.success(f"✅ Bought {quantity} shares of {symbol.upper()} at ₹{avg_price}")
+                    st.balloons()
 
     elif st.session_state.selected_service=="sell":
         st.markdown("### 📉 Sell Stock")
