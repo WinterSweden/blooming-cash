@@ -1,5 +1,5 @@
-streamlit==1.29.0
-pandas==2.1.4
-yfinance==0.2.33
-kiteconnect==4.2.0
-breeze-connect==1.0.30
+streamlit==1.26.0
+pandas==2.1.1
+requests==2.32.0
+beautifulsoup4==4.12.2
+yfinance==0.2.27
